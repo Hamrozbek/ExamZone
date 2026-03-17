@@ -26,7 +26,8 @@ export default function AdminDashboard() {
         try {
             setLoading(true);
             const response = await api.get("/users/panel-users/");
-            setStudents(response.data);
+            const data = Array.isArray(response.data) ? response.data : response.data?.results || [];
+            setStudents(data);
         } catch (error) {
             toast.error("Ma'lumotlarni yuklashda xatolik!");
         } finally {
@@ -40,7 +41,6 @@ export default function AdminDashboard() {
             if (viewingUser.role === "teacher") {
                 fetchTeacherStats(viewingUser.username);
             } else {
-                // Student username orqali statistika olish
                 fetchStudentStats(viewingUser.username);
             }
         }
@@ -49,15 +49,14 @@ export default function AdminDashboard() {
     const fetchTeacherStats = async (username: string) => {
         try {
             setStatsLoading(true);
-
             const subRes = await api.get(`/exams/subjects/`);
-            const allSubjects = Array.isArray(subRes.data) ? subRes.data : (subRes.data?.results || []);
+            const allSubjects = Array.isArray(subRes.data) ? subRes.data : subRes.data?.results || [];
 
             const subject = allSubjects.find((s: any) => s.teacher === username);
 
             if (subject) {
                 const resRes = await api.get(`/exams/results/`);
-                const allResults = Array.isArray(resRes.data) ? resRes.data : (resRes.data?.results || []);
+                const allResults = Array.isArray(resRes.data) ? resRes.data : resRes.data?.results || [];
 
                 const filteredResults = allResults.filter((r: any) => r.subject === subject.id);
 
@@ -66,9 +65,11 @@ export default function AdminDashboard() {
                     studentsCount: filteredResults.length,
                     results: filteredResults
                 });
+            } else {
+                setTeacherStats({ subjectName: "Fan biriktirilmagan", studentsCount: 0, results: [] });
             }
         } catch (error) {
-            console.error("Teacher stats error:", error);
+            console.error("Ustoz statistikasi xatosi:", error);
         } finally {
             setStatsLoading(false);
         }
@@ -77,11 +78,15 @@ export default function AdminDashboard() {
     const fetchStudentStats = async (viewingUsername: string) => {
         try {
             setStatsLoading(true);
+
             const response = await api.get(`/exams/results/`);
-            const allResults = Array.isArray(response.data) ? response.data : (response.data?.results || []);
+
+            const allResults = Array.isArray(response.data)
+                ? response.data
+                : (response.data?.results || []);
 
             const filtered = allResults.filter((r: any) =>
-                r.student_name === viewingUsername
+                r.student_name === viewingUsername || r.student === viewingUsername
             );
 
             console.log(`${viewingUsername} uchun filtrlangan natijalar:`, filtered);
@@ -89,24 +94,38 @@ export default function AdminDashboard() {
             setStudentStats(filtered.sort((a: any, b: any) =>
                 new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             ));
+
         } catch (error) {
-            console.error("Xatolik:", error);
+            console.error("Talaba statistikasi yuklashda xatolik:", error);
+            toast.error("Natijalarni yuklab bo'lmadi");
         } finally {
             setStatsLoading(false);
         }
     };
 
     const handleRoleChange = async (userName: string, newRole: string) => {
-        const loadingToast = toast.loading("Amal bajarilmoqda...");
+        const loadingToast = toast.loading("Rol o'zgartirilmoqda...");
         try {
-            await api.post("/users/assign-teacher/", { username: userName, role: newRole });
-            setStudents(prev => prev.map(u => u.username === userName ? { ...u, role: newRole } : u));
-            toast.success("O'zgartirildi!", { id: loadingToast });
-        } catch (error) { toast.error("Xatolik!", { id: loadingToast }); }
+            await api.post("/users/assign-teacher/", {
+                username: userName,
+                role: newRole
+            });
+
+            setStudents(prev => prev.map(u =>
+                u.username === userName ? { ...u, role: newRole } : u
+            ));
+
+            toast.success("Muvaffaqiyatli o'zgartirildi!", { id: loadingToast });
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.detail || "Xatolik yuz berdi!";
+            toast.error(errorMsg, { id: loadingToast });
+        }
     };
 
     const handleConfirmLogout = () => {
-        localStorage.clear();
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("user_role");
+        localStorage.removeItem("loggedUser");
         router.push("/auth/login");
         toast.success("Tizimdan chiqdingiz");
     };

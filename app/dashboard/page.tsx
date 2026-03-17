@@ -1,14 +1,13 @@
 "use client";
 
-// use state 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-// components 
+import { Loader2 } from "lucide-react"; 
 import { AdminDashboard, TeacherDashboard, UserDashboard } from "@/modules";
 
 export default function Dashboard() {
     const [role, setRole] = useState<string | null>(null);
+    const [isChecking, setIsChecking] = useState(true); 
     const router = useRouter();
 
     useEffect(() => {
@@ -22,10 +21,10 @@ export default function Dashboard() {
 
         try {
             const loggedUser = JSON.parse(storedUser);
-            const userName = (loggedUser?.username || loggedUser?.name || "").toLowerCase();
-            const userRole = loggedUser?.role?.toLowerCase();
+            const userRole = (loggedUser?.role || "student").toLowerCase();
+            const userName = (loggedUser?.username || "").toLowerCase();
 
-            if (userName === "superadmin" || userRole === "admin") {
+            if (userRole === "admin" || userName === "superadmin") {
                 setRole("admin");
             } else if (userRole === "teacher") {
                 setRole("teacher");
@@ -33,14 +32,25 @@ export default function Dashboard() {
                 setRole("student");
             }
         } catch (error) {
-            console.error("Dashboard error:", error);
+            console.error("Dashboard auth error:", error);
             localStorage.clear();
             router.push("/auth/login");
+        } finally {
+            setIsChecking(false); 
         }
     }, [router]);
 
+    if (isChecking) {
+        return (
+            <div className="min-h-screen bg-[#030925] flex flex-col items-center justify-center gap-4">
+                <Loader2 className="animate-spin text-blue-500" size={48} />
+                <p className="text-blue-500/50 font-bold tracking-widest text-xs uppercase">Ruxsat tekshirilmoqda...</p>
+            </div>
+        );
+    }
+
     return (
-        <main>
+        <main className="min-h-screen bg-[#030925]">
             {role === "admin" && <AdminDashboard />}
             {role === "teacher" && <TeacherDashboard />}
             {role === "student" && <UserDashboard />}

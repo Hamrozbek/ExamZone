@@ -16,6 +16,21 @@ api.interceptors.request.use((config) => {
         }
     }
     return config;
-}, (error) => Promise.reject(error));
+}, (error) => {
+    return Promise.reject(error);
+});
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            if (typeof window !== 'undefined') {
+                localStorage.clear();
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
 
 export default api;

@@ -28,6 +28,7 @@ export default function AddSubjectPage() {
     const [selectedTeacher, setSelectedTeacher] = useState("");
 
     useEffect(() => {
+        let isMounted = true;
         const fetchData = async () => {
             try {
                 const [usersRes, subjectsRes] = await Promise.all([
@@ -35,21 +36,30 @@ export default function AddSubjectPage() {
                     api.get("/exams/subjects/")
                 ]);
 
-                const userData = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.results || []);
-                setTeachers(userData.filter((u: User) => u.role?.toLowerCase() === "teacher"));
+                if (isMounted) {
+                    const userData = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.results || []);
+                    setTeachers(userData.filter((u: User) => u.role?.toLowerCase() === "teacher"));
 
-                const subjectData = Array.isArray(subjectsRes.data) ? subjectsRes.data : (subjectsRes.data?.results || []);
-                setSubjects(subjectData);
+                    const subjectData = Array.isArray(subjectsRes.data) ? subjectsRes.data : (subjectsRes.data?.results || []);
+                    setSubjects(subjectData);
+                }
             } catch (err) {
-                console.error("Ma'lumotlarni yuklashda xato:", err);
-                toast.error("Ma'lumotlarni yuklab bo'lmadi");
+                if (isMounted) toast.error("Ma'lumotlarni yuklab bo'lmadi");
             }
         };
         fetchData();
+        return () => { isMounted = false; };
     }, []);
 
-    // Ustoz bandligini tekshirish
-    const isTeacherBusy = subjects.some(s => s.teacher === selectedTeacher);
+    const isTeacherBusy = selectedTeacher
+        ? subjects.some(s => s.teacher === selectedTeacher)
+        : false;
+
+    const isSubmitDisabled = loading ||
+        isTeacherBusy ||
+        !selectedTeacher ||
+        !subjectName.trim() ||
+        subjects.length === 0;
 
     const handleSave = async () => {
         if (!subjectName.trim() || !selectedTeacher) {
@@ -107,11 +117,18 @@ export default function AddSubjectPage() {
                             className={`w-full bg-[#030925] border ${isTeacherBusy ? 'border-red-500/50 ring-2 ring-red-500/10' : 'border-white/10'} rounded-2xl p-4 font-bold outline-none cursor-pointer transition-all`}
                         >
                             <option value="">Tanlang...</option>
-                            {teachers.map((t) => (
-                                <option key={t.username} value={t.username}>
-                                    {t.username} {subjects.some(s => s.teacher === t.username) ? "(BAND)" : ""}
-                                </option>
-                            ))}
+                            {teachers.map((t) => {
+                                const busy = subjects.some(s => s.teacher === t.username);
+                                return (
+                                    <option
+                                        key={t.username}
+                                        value={t.username}
+                                        className={busy ? "text-slate-500 italic" : "text-white"}
+                                    >
+                                        {t.username} {busy ? " — (BAND)" : ""}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
 
@@ -128,8 +145,8 @@ export default function AddSubjectPage() {
                     {/* Saqlash tugmasi */}
                     <button
                         onClick={handleSave}
-                        disabled={loading || isTeacherBusy || !selectedTeacher || !subjectName}
-                        className="w-full bg-blue-600 cursor-pointer hover:bg-blue-500 disabled:bg-white/5 disabled:text-white/20 py-4 rounded-2xl font-black text-sm tracking-widest transition-all mt-4"
+                        disabled={isSubmitDisabled} // Tayyor o'zgaruvchidan foydalanamiz
+                        className="w-full bg-blue-600 cursor-pointer hover:bg-blue-500 disabled:bg-white/5 disabled:text-white/20 disabled:cursor-not-allowed py-4 rounded-2xl font-black text-sm tracking-widest transition-all mt-4 shadow-lg shadow-blue-600/20"
                     >
                         {loading ? "YUKLANMOQDA..." : "FANNI TASDIQLASH"}
                     </button>

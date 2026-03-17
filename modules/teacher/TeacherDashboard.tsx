@@ -26,7 +26,6 @@ export default function TeacherDashboard() {
 
     const loadData = useCallback(async (shouldShowLoading = false) => {
         try {
-            // Faqat ruxsat berilsa loadingni yoqamiz
             if (shouldShowLoading) setLoading(true);
 
             const loggedUserString = localStorage.getItem("loggedUser");
@@ -35,13 +34,21 @@ export default function TeacherDashboard() {
             const loggedUser = JSON.parse(loggedUserString);
             setTeacherName(loggedUser.username || "");
 
+            // 1. Fanlarni olish
             const subjectsRes = await api.get("/exams/subjects/");
-            const subject = subjectsRes.data.find((s: any) => s.teacher === loggedUser.username);
+            const allSubjects = Array.isArray(subjectsRes.data) ? subjectsRes.data : (subjectsRes.data?.results || []);
+
+            const subject = allSubjects.find((s: any) => s.teacher === loggedUser.username);
 
             if (subject) {
                 setMySubject(subject);
+                localStorage.setItem("mySubject", JSON.stringify(subject));
+
                 const resultsRes = await api.get(`/exams/results/?subject=${subject.id}`);
-                setMyStudents(Array.isArray(resultsRes.data) ? resultsRes.data : []);
+                const resultsData = Array.isArray(resultsRes.data) ? resultsRes.data : (resultsRes.data?.results || []);
+
+                setMyStudents(resultsData);
+                localStorage.setItem("myStudents", JSON.stringify(resultsData));
             }
         } catch (error) {
             toast.error("Ma'lumotlarni yuklashda xatolik");
@@ -56,15 +63,14 @@ export default function TeacherDashboard() {
         const localSubject = localStorage.getItem("mySubject");
 
         if (localStudents && localSubject) {
-            // Agar localda bo'lsa, shuni o'zini set qilamiz (API ga chiqmaymiz)
             setMyStudents(JSON.parse(localStudents));
             setMySubject(JSON.parse(localSubject));
-            setLoading(false);
+            loadData(false);
         } else {
-            // Agar localda bo'lmasa, birinchi marta API dan tortamiz
             loadData(true);
         }
     }, [loadData]);
+
     const handleAddBulkTests = async (tests: TestInput[]): Promise<void> => {
         if (!mySubject) {
             toast.error("Fan aniqlanmadi");
@@ -73,14 +79,43 @@ export default function TeacherDashboard() {
 
         try {
             setIsSubmitting(true);
-            // API ga yuborish kodi...
+
+            for (const test of tests) {
+                if (!test.question.trim()) continue;
+
+                const questionRes = await api.post("/exams/questions/", {
+                    subject: mySubject.id,
+                    text: test.question,
+                });
+
+                const questionId = questionRes.data.id;
+
+                const options = [
+                    { text: test.option1, isCorrect: test.correct_answer === 1 },
+                    { text: test.option2, isCorrect: test.correct_answer === 2 },
+                    { text: test.option3, isCorrect: test.correct_answer === 3 },
+                    { text: test.option4, isCorrect: test.correct_answer === 4 },
+                ];
+
+                const optionPromises = options.map(opt =>
+                    api.post("/exams/choices/", {
+                        question: questionId,
+                        text: opt.text,
+                        is_correct: opt.isCorrect
+                    })
+                );
+
+                await Promise.all(optionPromises);
+            }
+
             toast.success("5 ta test muvaffaqiyatli saqlandi!");
             setIsAddModalOpen(false);
-
-            // Test qo'shilganda loading-siz ma'lumotni yangilaymiz
             await loadData(false);
-        } catch (err) {
-            toast.error("Xatolik yuz berdi");
+
+        } catch (err: any) {
+            console.error("Xatolik:", err);
+            toast.error("Testlarni saqlashda xatolik yuz berdi");
+            throw err;
         } finally {
             setIsSubmitting(false);
         }

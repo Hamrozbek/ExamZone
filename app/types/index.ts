@@ -1,7 +1,7 @@
 export interface User {
     id: number;
-    username: string; 
-    name?: string;    
+    username: string;
+    name?: string;
     role: "user" | "teacher" | "admin" | string;
     password?: string;
 }
@@ -15,12 +15,12 @@ export interface UserTableProps {
 export interface Subject {
     id: number;
     name: string;
-    teacher?: string;    
+    teacher?: string;
     teacherId?: number;
     studentIds?: number[];
 }
 
-export interface UseSubject { 
+export interface UseSubject {
     id: number;
     name: string;
 }
@@ -36,17 +36,18 @@ export interface Question {
     id: number;
     subject: number;
     text: string;
-    choices: Choice[];    
-    options?: Choice[];   
+    choices: Choice[];
+    options?: Choice[];
 }
 
-export interface TestInput { 
+export interface TestInput {
     question: string;
     option1: string;
     option2: string;
     option3: string;
     option4: string;
     correct_answer: number;
+    [key: string]: any;
 }
 
 export interface TestResult {
@@ -57,7 +58,7 @@ export interface TestResult {
     date: string;
 }
 
-export interface StudentResult { 
+export interface StudentResult {
     id: number;
     student_name: string;
     correct_answers: number;

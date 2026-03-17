@@ -22,7 +22,7 @@ const DEFAULT_TESTS: TestInput[] = Array(5).fill(null).map(() => ({
 export const AddTestModal = ({ isOpen, onClose, onSubmit, isSubmitting }: Props) => {
     const [testList, setTestList] = useState<TestInput[]>(DEFAULT_TESTS);
 
-    const handleChange = (index: number, field: keyof TestInput, value: string | number) => {
+    const handleChange = (index: number, field: string, value: string | number) => {
         setTestList(prev => {
             const updated = [...prev];
             updated[index] = { ...updated[index], [field]: value };

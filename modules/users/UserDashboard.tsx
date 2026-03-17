@@ -12,7 +12,6 @@ import { LogOut, Loader2 } from "lucide-react";
 import { Choice, Question, UseSubject } from "@/app/types";
 import { SubjectCard, TestInterface, TestResult } from "@/modules/users";
 
-
 export default function UserDashboard() {
   // --- STATE ---
   const [mySubjects, setMySubjects] = useState<UseSubject[]>([]);
@@ -33,7 +32,8 @@ export default function UserDashboard() {
     try {
       setLoading(true);
       const response = await api.get("/exams/subjects/");
-      setMySubjects(response.data);
+      const data = Array.isArray(response.data) ? response.data : response.data.results;
+      setMySubjects(data || []);
     } catch (error) {
       toast.error("Fanlarni yuklab bo'lmadi");
     } finally {
@@ -48,28 +48,26 @@ export default function UserDashboard() {
     try {
       setLoading(true);
       const [qRes, cRes] = await Promise.all([
-        api.get<Question[]>("/exams/questions/"),
-        api.get<Choice[]>("/exams/choices/")
+        api.get<Question[]>(`/exams/questions/?subject=${subject.id}`),
+        api.get<Choice[]>(`/exams/choices/?question__subject=${subject.id}`)
       ]);
 
-      const subjectQuestions = qRes.data.filter((q) => q.subject === subject.id);
+      const rawQuestions = Array.isArray(qRes.data) ? qRes.data : (qRes.data as any).results || [];
+      const rawChoices = Array.isArray(cRes.data) ? cRes.data : (cRes.data as any).results || [];
 
-      if (subjectQuestions.length === 0) {
+      if (rawQuestions.length === 0) {
         toast.error("Bu fanda hozircha savollar yo'q");
         return;
       }
 
-      const enriched = subjectQuestions.map((q) => ({
+      const enriched = rawQuestions.map((q: any) => ({
         ...q,
-        options: cRes.data.filter((c) => c.question === q.id)
+        options: rawChoices.filter((c: any) => c.question === q.id)
       }));
 
       setQuestions(enriched);
       setSelectedSubject(subject);
       setTestStarted(true);
-      setCurrentQuestion(0);
-      setAnswers({});
-      setShowResult(false);
     } catch (error) {
       toast.error("Testni yuklashda xatolik");
     } finally {
@@ -93,18 +91,25 @@ export default function UserDashboard() {
     if (!selectedSubject) return;
     try {
       setLoading(true);
+
+      const formattedAnswers = Object.entries(finalAnswers).reduce((acc, [qId, cId]) => {
+        acc[qId] = cId;
+        return acc;
+      }, {} as Record<string, number>);
+
+      console.log("Qayta formatlangan (Dictionary):", formattedAnswers);
       const response = await api.post(`/exams/subjects/${selectedSubject.id}/submit/`, {
-        answers: finalAnswers
+        answers: formattedAnswers
       });
 
-      const correctCount = response.data.correct_answers || 0;
-      const scorePercentage = Math.round((correctCount / questions.length) * 100);
+      const score = response.data.score ?? Math.round((response.data.correct_answers / questions.length) * 100);
 
-      setFinalScore(scorePercentage);
+      setFinalScore(score);
       setShowResult(true);
       setTestStarted(false);
-    } catch (error) {
-      toast.error("Natijani yuborishda xatolik");
+    } catch (error: any) {
+      console.error("Server xatosi:", error.response?.data);
+      toast.error("Format xatosi: Server obyekt kutyapti");
     } finally {
       setLoading(false);
     }
@@ -113,7 +118,7 @@ export default function UserDashboard() {
   // --- TIZIMDAN CHIQISH ---
   const handleExit = () => {
     localStorage.clear();
-    router.push("/");
+    router.push("/auth/login");
   };
 
   // --- RENDER ---
@@ -134,8 +139,13 @@ export default function UserDashboard() {
             score={finalScore}
             subjectName={selectedSubject?.name || ""}
             onClose={() => {
-              localStorage.clear();
-              router.push("/");
+              // Test holatlarini nolga tushiramiz va asosiy ro'yxatga qaytamiz
+              setShowResult(false);
+              setSelectedSubject(null);
+              setQuestions([]);
+              setAnswers({});
+              setCurrentQuestion(0);
+              // localStorage.clear() KERAK EMAS (agar tizimda qolishi kerak bo'lsa)
             }}
           />
         ) : !testStarted ? (
